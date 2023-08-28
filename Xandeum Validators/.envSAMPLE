@@ -1,0 +1,9 @@
+# Validator Data Source Options
+dataSources = ['xandev-1.xandeum.io', 'xandev-2.xandeum.io']
+dataSourcePorts = ['8899']
+
+# Data Store Configuration
+dbase = ''
+dbName = ''
+dbUname = ''
+dbPass = ''

@@ -25,14 +25,6 @@
 #
 # 888888888888888888888888888888888888888888888888888888888888888888888888888888
 
-# Open Data Source
-dataSource = r'https://services1.arcgis.com/EYzEZbDhXZjURPbP/arcgis/rest/services/Bellevue_Permits/FeatureServer/0'
-
-
-# ------------------------------------------------------------------------------
-# DO NOT UPDATE BELOW THIS LINE OR RISK DOOM AND DISPAIR!  Have a nice day!
-# ------------------------------------------------------------------------------
-
 import datetime
 import time
 import base64
@@ -41,6 +33,25 @@ import requests
 import json
 import sys
 import os
+from dotenv import find_dotenv, load_dotenv
+
+# ------------------------------------------------------------------------------
+# DO NOT UPDATE BELOW THIS LINE OR RISK DOOM AND DISPAIR!  Have a nice day!
+# ------------------------------------------------------------------------------
+
+envPath = find_dotenv()
+load_dotenv(envPath)
+
+# Validator Data Source Options
+dataSources = os.getenv('dataSources')
+dataSourcePorts = os.getenv('dataSourcePorts')
+
+# Data Store Configuration
+dbase = os.getenv('dbase')
+dbName = os.getenv('dbName')
+dbUname = os.getenv('dbUname')
+dbPass = os.getenv('dbPass')
+
 
 #-------------------------------------------------------------------------------
 #
