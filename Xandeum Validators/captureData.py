@@ -88,7 +88,7 @@ def startup():
 
 def captureData(values):
 #-------------------------------------------------------------------------------
-# Name:        Function - captureDS
+# Name:        Function - captureData
 # Purpose:  
 #-------------------------------------------------------------------------------
   
@@ -105,7 +105,7 @@ def captureData(values):
 
 def getClusterNodes():
 #-------------------------------------------------------------------------------
-# Name:        Function - captureDS
+# Name:        Function - getClusterNodes
 # Purpose:  
 #-------------------------------------------------------------------------------
 
