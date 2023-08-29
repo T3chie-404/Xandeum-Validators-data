@@ -28,7 +28,6 @@
 import datetime
 import time
 import base64
-import urllib
 import requests
 import json
 import sys
@@ -52,7 +51,6 @@ dbName = os.getenv('dbName')
 dbUname = os.getenv('dbUname')
 dbPass = os.getenv('dbPass')
 
-
 #-------------------------------------------------------------------------------
 #
 #
@@ -69,6 +67,9 @@ def main():
 
     starttime = startup()
     print ('Starup job @: {}'.format(starttime))
+
+    getClusterNodes()
+    
     stoptime = startup()    
     print ('Finished job @: {}'.format(stoptime))
 
@@ -83,6 +84,43 @@ def startup():
     starttime = datetime.datetime.now()
 
     return (starttime)
+
+
+def captureData(values):
+#-------------------------------------------------------------------------------
+# Name:        Function - captureDS
+# Purpose:  
+#-------------------------------------------------------------------------------
+  
+    urlQuery = 'http://{}:{}'.format(dataSources, dataSourcePorts)
+    headers = {
+        'Content-Type': 'application/json'
+        }
+    dataResponse = requests.post(urlQuery, headers=headers, json=values)
+    
+    dataJSON = dataResponse.json()        
+        
+    return (dataJSON)
+
+
+def getClusterNodes():
+#-------------------------------------------------------------------------------
+# Name:        Function - captureDS
+# Purpose:  
+#-------------------------------------------------------------------------------
+
+    values = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'getClusterNodes'
+        }
+
+    dataJSON = captureData(values)
+    
+    for item in dataJSON['result']:
+        print (item['pubkey'], item['gossip'], item['version'])
+    
+    return()
 
 
 #-------------------------------------------------------------------------------
