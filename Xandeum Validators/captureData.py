@@ -85,8 +85,8 @@ def main():
     starttime = startup()
     print ('Starup job @: {}'.format(starttime))
 
-    payLoad = getClusterNodes()
-    
+    getClusterNodes()
+    getEpochInfo()
     
     stoptime = startup()    
     print ('Finished job @: {}'.format(stoptime))
@@ -139,8 +139,6 @@ def getClusterNodes():
     
     payLoad = []        
     for item in dataJSON['result']:
-        payLoadPrep = []
-        #print (item['pubkey'], item['gossip'], item['version'])
         valID = item['pubkey']
         valGoss = item['gossip']
         valIP = valGoss.split(':', 1)[0]
@@ -156,7 +154,83 @@ def getClusterNodes():
 
     storeClusterNodes(payLoad)
     
-    return(payLoad)
+    return()
+
+def getEpochInfo():
+#-------------------------------------------------------------------------------
+# Name:        Function - getEpochInfo
+# Purpose:  
+#-------------------------------------------------------------------------------    
+    
+    values = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'getEpochInfo'
+        }
+
+    dataJSON = captureData(values)
+    
+    payLoad = []
+    valEpoch = int(dataJSON['result']['epoch'])
+    valSlots = int(dataJSON['result']['slotsInEpoch'])
+    valTransactions = int(dataJSON['result']['transactionCount'])
+    print ('Found Epoch ID {} \n\t'.format(valEpoch),
+            '-- Slots in Epoch: {} \n\t'.format(valSlots),
+            '-- Current Tranasaction Count: {} \n\n'.format(valTransactions)               
+            )
+    payLoadPrep = (valEpoch, valSlots, valTransactions)
+    payLoad.append(payLoadPrep)
+    
+    newData = storeEpochInfo(payLoad)
+    
+    if newData != 1:
+        getVoteAccounts()
+    
+    return()
+
+def getVoteAccounts():
+    
+    values = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'getVoteAccounts'
+        }
+
+    dataJSON = captureData(values)
+    
+    for item in dataJSON['result']['current']:
+        valID = item['nodePubkey']
+        valVoteID = item['votePubkey']
+        valCommission = item['commission']
+        valActiveStake = item['activatedStake']
+        valLastVote = item['lastVote']
+        valCurrent = 'Current'
+        
+        print ('Found Validator ID {} \n\t'.format(valID),
+                '-- Vote Account: {} \n\t'.format(valVoteID),
+                '-- Commission: {} \n\t'.format(valCommission),
+                '-- Stake: {} \n\t'.format(valActiveStake),
+                '-- Last Voted: {} \n\t'.format(valLastVote),
+                '-- Current: {} \n\n'.format(valCurrent)
+                )
+        
+    for item in dataJSON['result']['delinquent']:
+        valID = item['nodePubkey']
+        valVoteID = item['votePubkey']
+        valCommission = item['commission']
+        valActiveStake = item['activatedStake']
+        valLastVote = item['lastVote']
+        valCurrent = 'Delinquent'
+        
+        print ('Found Validator ID {} \n\t'.format(valID),
+                '-- Vote Account: {} \n\t'.format(valVoteID),
+                '-- Commission: {} \n\t'.format(valCommission),
+                '-- Stake: {} \n\t'.format(valActiveStake),
+                '-- Last Voted: {} \n\t'.format(valLastVote),
+                '-- Current: {} \n\n'.format(valCurrent)
+                )  
+        
+    return()
 
 def storeClusterNodes(payLoad):
 #-------------------------------------------------------------------------------
@@ -199,6 +273,7 @@ def storeClusterNodes(payLoad):
 
             update validators
             set sysChangeDate = CURRENT_TIMESTAMP()
+            where validatorID = '{}'
 
             '''.format(valID)
 
@@ -351,6 +426,92 @@ def captureValidatorConfig(conn, itemFKID, valGoss, valIP, valPort, valVer):
     
     return()
 
+def storeEpochInfo(payLoad):
+#-------------------------------------------------------------------------------
+# Name:        Function - storeClusterNodes
+# Purpose:  
+#-------------------------------------------------------------------------------
+
+    conn = mysql.connector.connect(**db_conn)
+    
+    for item in payLoad:
+        valEpoch = item[0]
+        valSlots = item[1]
+        valTransactions = item[2]
+        
+        checkRes = checkIfEpochExists(conn, valEpoch)
+        
+        if checkRes == 0:            
+            query = conn.cursor()
+            sqlCommand = '''
+
+            insert into epochInfo (
+                epoch
+                , slots
+                , transactionCount
+                , sysCreateDate
+                , sysChangeDate
+                , globalID
+            )
+                Values ({}, {}, {}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), UUID())
+
+            '''.format(valEpoch, valSlots , valTransactions)
+
+            query.execute(sqlCommand)           
+            conn.commit()
+
+            newData = 1            
+
+        else:   
+            conn = mysql.connector.connect(**db_conn)            
+            query = conn.cursor()
+            sqlCommand = '''
+
+            update epochInfo
+            set sysChangeDate = CURRENT_TIMESTAMP()
+            , transactionCount = {}
+            where epoch = {}
+
+            '''.format(valTransactions, valEpoch)
+
+            query.execute(sqlCommand)
+            conn.commit()
+            
+            newData = 0
+    
+    conn.close()
+
+    return(newData)
+
+def checkIfEpochExists(conn, valEpoch):
+#-------------------------------------------------------------------------------
+# Name:        Function - checkIfExists
+# Purpose:  
+#-------------------------------------------------------------------------------
+  
+    checkRes = 0
+    query = conn.cursor()
+    query_string = '''
+    
+    SELECT COUNT(epoch) FROM epochInfo 
+    WHERE epoch = {}
+        
+    '''.format(valEpoch)
+    
+    query.execute(query_string)
+    queryResult = query.fetchone()
+    
+    testItem = queryResult[0]
+    
+    if testItem == 0:
+        checkRes = 0
+    else: 
+        checkRes = 1
+        
+    query.close() 
+    
+    return(checkRes)
+
 
 
 
@@ -362,7 +523,7 @@ def captureValidatorConfig(conn, itemFKID, valGoss, valIP, valPort, valVer):
 #
 #-------------------------------------------------------------------------------
 
-if setTest == 0:
+if setTest == 'False':
     while True:
         if __name__ == "__main__":
             main()

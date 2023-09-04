@@ -1,9 +1,13 @@
+# Testing Setting. If False, not testing. If True, testing.
+setTest = 'False'
+
 # Validator Data Source Options
-dataSources = 'xandev-rpc2.xandeum.io'
-dataSourcePorts = '8899'
+dataSources = ''
+dataSourcePorts = ''
 
 # Data Store Configuration
 dbase = ''
+dbPort = ''
 dbName = ''
 dbUname = ''
 dbPass = ''
