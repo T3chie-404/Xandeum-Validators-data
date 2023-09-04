@@ -26,6 +26,7 @@
 # 888888888888888888888888888888888888888888888888888888888888888888888888888888
 
 import datetime
+from pickletools import read_stringnl_noescape_pair
 from smtplib import quoteaddr
 import time
 import base64
@@ -85,8 +86,12 @@ def main():
     starttime = startup()
     print ('Starup job @: {}'.format(starttime))
 
-    getClusterNodes()
-    getEpochInfo()
+    try:
+        getClusterNodes()
+        getEpochInfo()
+    except:
+        time.sleep (10)
+        print ('-- Temporary failure. Trying again in a few minutes.')
     
     stoptime = startup()    
     print ('Finished job @: {}'.format(stoptime))
@@ -183,12 +188,16 @@ def getEpochInfo():
     
     newData = storeEpochInfo(payLoad)
     
-    if newData != 1:
-        getVoteAccounts()
+    if newData != 0:
+        getVoteAccounts(valEpoch)
     
     return()
 
-def getVoteAccounts():
+def getVoteAccounts(valEpoch):
+#-------------------------------------------------------------------------------
+# Name:        Function - getVoteAccounts
+# Purpose:  
+#-------------------------------------------------------------------------------
     
     values = {
         'jsonrpc': '2.0',
@@ -199,37 +208,59 @@ def getVoteAccounts():
     dataJSON = captureData(values)
     
     for item in dataJSON['result']['current']:
+        payLoad = []
         valID = item['nodePubkey']
         valVoteID = item['votePubkey']
         valCommission = item['commission']
         valActiveStake = item['activatedStake']
         valLastVote = item['lastVote']
         valCurrent = 'Current'
+        valVotes = item['epochCredits']
         
         print ('Found Validator ID {} \n\t'.format(valID),
                 '-- Vote Account: {} \n\t'.format(valVoteID),
                 '-- Commission: {} \n\t'.format(valCommission),
                 '-- Stake: {} \n\t'.format(valActiveStake),
                 '-- Last Voted: {} \n\t'.format(valLastVote),
-                '-- Current: {} \n\n'.format(valCurrent)
+                '-- Current: {} \n\t'.format(valCurrent),
+                '-- Recent Votes: {} \n\n'.format(valVotes)
                 )
+        payLoadPrep = (valID, valVoteID, valCommission, valActiveStake, 
+                       valLastVote, valCurrent)
+        payLoad.append(payLoadPrep)
+
+        itemFKID = storeVoteAccount(payLoad)
+
+        storeVotes (itemFKID, valEpoch, valVotes)
+
         
     for item in dataJSON['result']['delinquent']:
+        payLoad = []        
         valID = item['nodePubkey']
         valVoteID = item['votePubkey']
         valCommission = item['commission']
         valActiveStake = item['activatedStake']
         valLastVote = item['lastVote']
         valCurrent = 'Delinquent'
+        valVotes = item['epochCredits']        
         
         print ('Found Validator ID {} \n\t'.format(valID),
                 '-- Vote Account: {} \n\t'.format(valVoteID),
                 '-- Commission: {} \n\t'.format(valCommission),
                 '-- Stake: {} \n\t'.format(valActiveStake),
                 '-- Last Voted: {} \n\t'.format(valLastVote),
-                '-- Current: {} \n\n'.format(valCurrent)
-                )  
+                '-- Current: {} \n\t'.format(valCurrent),
+                '-- Recent Votes: {} \n\n'.format(valVotes)
+                )
+        payLoadPrep = (valID, valVoteID, valCommission, valActiveStake, 
+                       valLastVote, valCurrent)
+        payLoad.append(payLoadPrep)
         
+        itemFKID = storeVoteAccount(payLoad)
+
+        storeVotes (itemFKID, valEpoch, valVotes)
+      
+                 
     return()
 
 def storeClusterNodes(payLoad):
@@ -247,8 +278,7 @@ def storeClusterNodes(payLoad):
         valPort = item[3]
         valVer = item[4]
         
-        checkRes = checkIfValidatorExists(conn, valID)
-        #conn = mysql.connector.connect(**db_conn)        
+        checkRes = checkIfValidatorExists(conn, valID)    
         if checkRes == 0:            
             query = conn.cursor()
             sqlCommand = '''
@@ -337,11 +367,14 @@ def gatherValidatorFKID(conn, valID):
     itemFKID = queryResult[0]
         
     query.close()
-
     
     return(itemFKID)
 
 def captureValidatorConfig(conn, itemFKID, valGoss, valIP, valPort, valVer):
+#-------------------------------------------------------------------------------
+# Name:        Function - captureValidatorConfig
+# Purpose:  
+#-------------------------------------------------------------------------------
     
     query = conn.cursor()
     query_string = '''
@@ -428,7 +461,7 @@ def captureValidatorConfig(conn, itemFKID, valGoss, valIP, valPort, valVer):
 
 def storeEpochInfo(payLoad):
 #-------------------------------------------------------------------------------
-# Name:        Function - storeClusterNodes
+# Name:        Function - storeEpochInfo
 # Purpose:  
 #-------------------------------------------------------------------------------
 
@@ -485,7 +518,7 @@ def storeEpochInfo(payLoad):
 
 def checkIfEpochExists(conn, valEpoch):
 #-------------------------------------------------------------------------------
-# Name:        Function - checkIfExists
+# Name:        Function - checkIfEpochExists
 # Purpose:  
 #-------------------------------------------------------------------------------
   
@@ -512,7 +545,245 @@ def checkIfEpochExists(conn, valEpoch):
     
     return(checkRes)
 
+def storeVoteAccount(payLoad):
+#-------------------------------------------------------------------------------
+# Name:        Function - storeVoteAccount
+# Purpose:  
+#-------------------------------------------------------------------------------
 
+    conn = mysql.connector.connect(**db_conn)
+    
+    for item in payLoad:
+        valID = item[0]
+        valVoteID = item[1]
+        valCommission = item[2]
+        valActiveStake = item[3]
+        valLastVote = item[4]
+        valCurrent = item[5]
+        
+        checkRes = checkIfValidatorExists(conn, valID)
+        
+        if checkRes == 0:                     
+            query = conn.cursor()
+            sqlCommand = '''
+
+            insert into validators (
+                validatorID
+                , firstCaptureDate
+                , sysCreateDate
+                , sysChangeDate
+                , globalID
+            )
+                Values ('{}', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), UUID())
+
+            '''.format(valID)
+
+            query.execute(sqlCommand)           
+            conn.commit()
+
+            query = conn.cursor()
+            query_string = '''
+    
+            SELECT globalID FROM validators 
+            WHERE validatorID = '{}'
+        
+            '''.format(valID)
+    
+            query.execute(query_string)
+            queryResult = query.fetchone()
+    
+            itemFKID = queryResult[0]
+
+            sqlCommand = '''
+
+            insert into votingValidators (
+                validatorID
+                , voteID
+                , commission
+                , activatedStake
+                , lastVote
+                , current
+                , sysCreateDate
+                , sysChangeDate
+                , fkID
+                , globalID
+            )
+                Values ('{}', '{}', {}, {}, {}, '{}', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), '{}', UUID())
+
+            '''.format(valID, valVoteID, valCommission, valActiveStake, valLastVote, valCurrent, itemFKID)
+
+            query.execute(sqlCommand)           
+            conn.commit()           
+
+        else:            
+            checkRes = checkIfValVotePairExists(conn, valID, valVoteID)
+            if checkRes == 0:
+                query = conn.cursor()
+                query_string = '''
+    
+                SELECT globalID FROM validators 
+                WHERE validatorID = '{}'
+        
+                '''.format(valID)
+    
+                query.execute(query_string)
+                queryResult = query.fetchone()
+    
+                itemFKID = queryResult[0]                
+
+                sqlCommand = '''
+
+                insert into votingValidators (
+                    validatorID
+                    , voteID
+                    , commission
+                    , activatedStake
+                    , lastVote
+                    , current
+                    , sysCreateDate
+                    , sysChangeDate
+                    , fkID
+                    , globalID
+                )
+                    Values ('{}', '{}', {}, {}, {}, '{}', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), '{}', UUID())
+
+                '''.format(valID, valVoteID, valCommission, valActiveStake, valLastVote, valCurrent, itemFKID)
+
+                query.execute(sqlCommand)           
+                conn.commit()
+
+            else:
+               
+                conn = mysql.connector.connect(**db_conn)            
+                query = conn.cursor()
+                sqlCommand = '''
+
+                update votingValidators
+                set commission = {}
+                , activatedStake = {}
+                , lastVote = {}
+                , current = '{}'
+                , sysChangeDate = CURRENT_TIMESTAMP()
+                where validatorID = '{}' and voteID = '{}'
+
+                '''.format(valCommission, valActiveStake, valLastVote, valCurrent, valID, valVoteID)
+
+                query.execute(sqlCommand)
+                conn.commit()
+                
+        query = conn.cursor()
+        query_string = '''
+    
+        SELECT globalID FROM votingValidators 
+        where validatorID = '{}' and voteID = '{}'
+        
+        '''.format(valID, valVoteID)
+    
+        query.execute(query_string)
+        queryResult = query.fetchone()
+    
+        itemFKID = queryResult[0]
+            
+    query.close
+    conn.close()
+
+    return(itemFKID)
+
+def checkIfValVotePairExists(conn, valID, valVoteID):
+#-------------------------------------------------------------------------------
+# Name:        Function - checkIfExists
+# Purpose:  
+#-------------------------------------------------------------------------------
+  
+    checkRes = 0
+    query = conn.cursor()
+    query_string = '''
+    
+    SELECT COUNT(validatorID) FROM votingValidators 
+    WHERE validatorID = '{}' and voteID = '{}'
+        
+    '''.format(valID, valVoteID)
+    
+    query.execute(query_string)
+    queryResult = query.fetchone()
+    
+    testItem = queryResult[0]
+    
+    if testItem == 0:
+        checkRes = 0
+    else: 
+        checkRes = 1
+        
+    query.close() 
+    
+    return(checkRes)
+
+def storeVotes (itemFKID, valEpoch, valVotes):
+#-------------------------------------------------------------------------------
+# Name:        Function - storeVotes
+# Purpose:  
+#-------------------------------------------------------------------------------
+
+    conn = mysql.connector.connect(**db_conn)
+    
+    for vote in valVotes:
+        valVoteEpoch = vote[0]
+        valCreditsStart = vote[1]
+        valCreditsFinish = vote[2]
+        
+        if valVoteEpoch != valEpoch:
+            checkRes = checkIfVoteExists(conn, itemFKID, valVoteEpoch)
+            
+            if checkRes == 0:                     
+                query = conn.cursor()
+                sqlCommand = '''
+
+                insert into votingValidatorVotes (
+                    epoch
+                    , credits
+                    , previousCredits
+                    , sysCreateDate
+                    , sysChangeDate
+                    , fkID
+                    , globalID
+                )
+                    Values ({}, {}, {}, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), '{}', UUID())
+
+                '''.format(valVoteEpoch, valCreditsStart, valCreditsFinish, itemFKID)
+
+                query.execute(sqlCommand)           
+                conn.commit()
+                
+    return()
+
+def checkIfVoteExists(conn, itemFKID, valVoteEpoch):
+#-------------------------------------------------------------------------------
+# Name:        Function - checkIfEpochExists
+# Purpose:  
+#-------------------------------------------------------------------------------
+  
+    checkRes = 0
+    query = conn.cursor()
+    query_string = '''
+    
+    SELECT COUNT(epoch) FROM votingValidatorVotes 
+    WHERE epoch = {} and fkID = '{}'
+        
+    '''.format(valVoteEpoch, itemFKID)
+    
+    query.execute(query_string)
+    queryResult = query.fetchone()
+    
+    testItem = queryResult[0]
+    
+    if testItem == 0:
+        checkRes = 0
+    else: 
+        checkRes = 1
+        
+    query.close() 
+    
+    return(checkRes)
 
 
 #-------------------------------------------------------------------------------
