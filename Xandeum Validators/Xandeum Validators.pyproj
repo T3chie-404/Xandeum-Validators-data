@@ -31,6 +31,7 @@
     <Content Include=".env" />
     <Content Include="config.env" />
     <Content Include="requirements.txt" />
+    <Content Include="xandeumIO_dev.sql" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
